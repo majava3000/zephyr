@@ -9,6 +9,8 @@
 #include <devicetree.h>
 #include <drivers/gpio.h>
 
+#include "../../../../czr/portable_kinetis_gpio.h"
+
 /* 1000 msec = 1 sec */
 #define SLEEP_TIME_MS   1000
 
@@ -49,8 +51,13 @@ void main(void)
 	}
 
 	while (1) {
+		PKG_TOGGLE_PIN(PKG_GPIOD, 0);
 		gpio_pin_set(dev, PIN, (int)led_is_on);
+		PKG_TOGGLE_PIN(PKG_GPIOD, 0);
 		led_is_on = !led_is_on;
+
+		PKG_TOGGLE_PIN(PKG_GPIOD, 1);
 		k_msleep(SLEEP_TIME_MS);
+		PKG_TOGGLE_PIN(PKG_GPIOD, 1);
 	}
 }

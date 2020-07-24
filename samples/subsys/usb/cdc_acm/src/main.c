@@ -46,7 +46,7 @@ static void interrupt_handler(struct device *dev, void *user_data)
 				LOG_ERR("Drop %u bytes", recv_len - rb_len);
 			}
 
-			LOG_DBG("tty fifo -> ringbuf %d bytes", rb_len);
+			LOG_INF("tty fifo -> ringbuf %d bytes", rb_len);
 
 			uart_irq_tx_enable(dev);
 		}
@@ -67,7 +67,7 @@ static void interrupt_handler(struct device *dev, void *user_data)
 				LOG_ERR("Drop %d bytes", rb_len - send_len);
 			}
 
-			LOG_DBG("ringbuf -> tty fifo %d bytes", send_len);
+			LOG_INF("ringbuf -> tty fifo %d bytes", send_len);
 		}
 	}
 }

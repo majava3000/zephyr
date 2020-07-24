@@ -46,6 +46,7 @@
 		compatible = "gpio-keys";
 		user_button_2: button_0 {
 			label = "User SW2";
+			// NOTE: This is shared with fxos8700.nINT1
 			gpios = <&gpioc 6 GPIO_ACTIVE_LOW>;
 		};
 		user_button_3: button_1 {
@@ -115,11 +116,17 @@ arduino_serial: &uart3 {
 
 arduino_i2c: &i2c0 {
 	status = "okay";
+	// Default clock-freq is I2C_BITRATE_STANDARD, set at nxp/nxp_k6x.dtsi
+	// We know that we can go safely faster, and all chips on this bus support
+	// the higher speed, so do it. The original freq results in something like
+	// 102kHz, this results in 394.4..395.6 kHz (digital saleae, so not truth)
+	clock-frequency = <I2C_BITRATE_FAST>;
 
 	fxos8700@1d {
 		compatible = "nxp,fxos8700";
 		reg = <0x1d>;
 		label = "FXOS8700";
+		// NOTE: This is shared with user_button_2
 		int1-gpios = <&gpioc 6 GPIO_ACTIVE_LOW>;
 		int2-gpios = <&gpioc 13 GPIO_ACTIVE_LOW>;
 	};

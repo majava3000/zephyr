@@ -28,8 +28,27 @@ static void trigger_handler(struct device *dev, struct sensor_trigger *trigger)
 }
 #endif /* !CONFIG_FXOS8700_TRIGGER_NONE */
 
+typedef int (*fptr_t)(void); // f(void): int
+
+volatile uint32_t* badPtr;
+
+uint16_t func[] = { 0x4601, 0x1c48, 0x4770 };
+
 void main(void)
 {
+  printf("hi\n");
+	// printf("Going to write to NULL now!\n");
+  // *((uint32_t*)0) = 5;
+  // Should have to do a function call to do a memmanage fault.
+
+  //printf("Calling system space (executable, but shouldn't be available)\n");
+  //fptr_t fptr = (fptr_t)0xe0000000U;
+  //fptr();
+
+  // printf("Reading NULL\n");
+  // const uint32_t boom = *badPtr;
+  // printf("Result is: %u\n", boom);
+
 	struct sensor_value accel[3];
 	struct device *dev = device_get_binding(DT_LABEL(DT_INST(0, nxp_fxos8700)));
 

@@ -6,6 +6,7 @@
 
 #include <init.h>
 #include <drivers/pinmux.h>
+#include <drivers/gpio.h>
 #include <fsl_port.h>
 
 static int frdm_k64f_pinmux_init(struct device *dev)
@@ -41,6 +42,7 @@ static int frdm_k64f_pinmux_init(struct device *dev)
 
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(uart2), okay) && CONFIG_SERIAL
 	/* UART2 RX, TX */
+	#error boom
 	pinmux_pin_set(portd, 0, PORT_PCR_MUX(kPORT_MuxAlt3));
 	pinmux_pin_set(portd, 1, PORT_PCR_MUX(kPORT_MuxAlt3));
 	pinmux_pin_set(portd, 2, PORT_PCR_MUX(kPORT_MuxAlt3));
@@ -52,12 +54,47 @@ static int frdm_k64f_pinmux_init(struct device *dev)
 	pinmux_pin_set(portc, 16, PORT_PCR_MUX(kPORT_MuxAlt3));
 	pinmux_pin_set(portc, 17, PORT_PCR_MUX(kPORT_MuxAlt3));
 #endif
+
+#ifndef CONFIG_PINMUX_MCUX_PORTD
+	#error "Please enable PINMUX_MCUX_PORTD from menuconfig!"
+	// otherwise the stuff below won't be very useful
+#endif
+
+#ifdef CONFIG_PINMUX_MCUX_PORTD
+	// in nxp_k6x.dtsi (gpiod.label = = "GPIO_3". tracing through the device_get_binding
+	// will allow you to list all the devices that are present in dts (disabled or not)
+	struct device *gpiod = device_get_binding("GPIO_3");
+
+	// HACK: We take these for our own tracing requirements
+	// PORTD pinmux must be enabled in config though
+	pinmux_pin_set(portd, 0, PORT_PCR_MUX(kPORT_MuxAsGpio));
+	gpio_config(gpiod, 0, GPIO_OUTPUT_LOW);
+	// These return -ENOTSUP on pinmux_mcux. wouldn't be nicer to assert instead
+	// pinmux_pin_pullup(portd, 0, PINMUX_PULLUP_DISABLE);
+	// pinmux_pin_input_enable(portd, 0, PINMUX_OUTPUT_ENABLED);
+	pinmux_pin_set(portd, 1, PORT_PCR_MUX(kPORT_MuxAsGpio));
+	gpio_config(gpiod, 1, GPIO_OUTPUT_LOW);
+	// pinmux_pin_pullup(portd, 1, PINMUX_PULLUP_DISABLE);
+	// pinmux_pin_input_enable(portd, 1, PINMUX_OUTPUT_ENABLED);
+	pinmux_pin_set(portd, 2, PORT_PCR_MUX(kPORT_MuxAsGpio));
+	gpio_config(gpiod, 2, GPIO_OUTPUT_LOW);
+	// pinmux_pin_pullup(portd, 2, PINMUX_PULLUP_DISABLE);
+	// pinmux_pin_input_enable(portd, 2, PINMUX_OUTPUT_ENABLED);
+	pinmux_pin_set(portd, 3, PORT_PCR_MUX(kPORT_MuxAsGpio));
+	gpio_config(gpiod, 3, GPIO_OUTPUT_LOW);
+	// pinmux_pin_pullup(portd, 3, PINMUX_PULLUP_DISABLE);
+	// pinmux_pin_input_enable(portd, 3, PINMUX_OUTPUT_ENABLED);
+#endif
+
+	// TODO: Shouldn't these be protected by the okay setting?
+	//       This has two sources though
 	/* SW2 / FXOS8700 INT1 */
 	pinmux_pin_set(portc,  6, PORT_PCR_MUX(kPORT_MuxAsGpio));
 
 	/* FXOS8700 INT2 */
 	pinmux_pin_set(portc, 13, PORT_PCR_MUX(kPORT_MuxAsGpio));
 
+	// Similar here
 	/* SW3 */
 	pinmux_pin_set(porta,  4, PORT_PCR_MUX(kPORT_MuxAsGpio));
 
