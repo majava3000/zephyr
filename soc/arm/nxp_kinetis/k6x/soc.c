@@ -20,6 +20,7 @@
 #include <drivers/uart.h>
 #include <fsl_common.h>
 #include <fsl_clock.h>
+#include <fsl_rtc.h> // FLL / RTC setup
 #include <arch/cpu.h>
 #include <arch/arm/aarch32/cortex_m/cmsis.h>
 
@@ -35,6 +36,17 @@
 
 #define RUNM_HSRUN              (3)
 
+#if CONFIG_OSC_XTAL0_FREQ != 0
+#error "Set OSC_XTAL0_FREQ to zero in menuconfig!"
+#endif
+// #define CONFIG_OSC_XTAL0_FREQ (0) // FLL
+#define CONFIG_XTAL32K_FREQ (32768)
+#define CONFIG_USE_FLL (1)
+#if defined(CONFIG_USE_FLL) && defined(CONFIG_K6X_HSRUN) // we can't support HSRUN from FLL
+#undef CONFIG_K6X_HSRUN
+#endif
+
+#if !defined(CONFIG_USE_FLL)
 static const osc_config_t oscConfig = {
 	.freq = CONFIG_OSC_XTAL0_FREQ,
 	.capLoad = 0,
@@ -57,21 +69,80 @@ static const osc_config_t oscConfig = {
 #endif
 	},
 };
-
 static const mcg_pll_config_t pll0Config = {
 	.enableMode = 0U,
 	.prdiv = CONFIG_MCG_PRDIV0,
 	.vdiv = CONFIG_MCG_VDIV0,
 };
+#endif // !CONFIG_USE_FLL
+
+#define SIM_PLLFLLSEL_IRC48MCLK_CLK                       3U  /*!< PLLFLL select: IRC48MCLK clock */
+#define SIM_OSC32KSEL_RTC32KCLK_CLK                       2U  /*!< OSC32KSEL select: RTC32KCLK clock (32.768kHz) */
 
 static const sim_clock_config_t simConfig = {
-	.pllFllSel = PLLFLLSEL_MCGPLLCLK, /* PLLFLLSEL select PLL. */
-	.er32kSrc = ER32KSEL_RTC,         /* ERCLK32K selection, use RTC. */
+	// .pllFllSel = PLLFLLSEL_MCGPLLCLK, /* PLLFLLSEL select PLL. */
+	// we'll need this for USB
+	.pllFllSel = SIM_PLLFLLSEL_IRC48MCLK_CLK, //
+	// .er32kSrc = ER32KSEL_RTC,         /* ERCLK32K selection, use RTC. */
+	.er32kSrc = SIM_OSC32KSEL_RTC32KCLK_CLK, // use RTC32KCLK
+	// TODO: review the divisor settings, but yes, we want them
+	//       .clkdiv1 = 0x1730000U,                    /* SIM_CLKDIV1 - OUTDIV1: /1, OUTDIV2: /2, OUTDIV3: /8, OUTDIV4: /4 */
 	.clkdiv1 = SIM_CLKDIV1_OUTDIV1(CONFIG_K6X_CORE_CLOCK_DIVIDER - 1) |
 		   SIM_CLKDIV1_OUTDIV2(CONFIG_K6X_BUS_CLOCK_DIVIDER - 1) |
 		   SIM_CLKDIV1_OUTDIV3(CONFIG_K6X_FLEXBUS_CLOCK_DIVIDER - 1) |
 		   SIM_CLKDIV1_OUTDIV4(CONFIG_K6X_FLASH_CLOCK_DIVIDER - 1),
 };
+
+#ifdef CONFIG_USE_FLL
+// FLL support code, stolen from mxuxpresso clock setup tool, which generates
+// KSDK2-like setup code
+// TODO: Where to set DRX32?
+
+static void CLOCK_CONFIG_FllStableDelay(void)
+{
+    uint32_t i = 30000U;
+    while (i--)
+    {
+        __NOP();
+    }
+}
+
+/*FUNCTION**********************************************************************
+ *
+ * Function Name : CLOCK_CONFIG_SetRtcClock
+ * Description   : This function is used to configuring RTC clock including
+ * enabling RTC oscillator.
+ * Param capLoad : RTC oscillator capacity load
+ * Param enableOutPeriph : Enable (1U)/Disable (0U) clock to peripherals
+ *
+ *END**************************************************************************/
+static void CLOCK_CONFIG_SetRtcClock(uint32_t capLoadBits, uint8_t enableOutPeriph)
+{
+  /* RTC clock gate enable */
+  CLOCK_EnableClock(kCLOCK_Rtc0);
+  if ((RTC->CR & RTC_CR_OSCE_MASK) == 0u) { /* Only if the Rtc oscillator is not already enabled */
+    /* Set the specified capacitor configuration for the RTC oscillator */
+    RTC_SetOscCapLoad(RTC, capLoadBits);
+    /* Enable the RTC 32KHz oscillator */
+    RTC->CR |= RTC_CR_OSCE_MASK;
+  }
+  /* Output to other peripherals */
+  if (enableOutPeriph) {
+    RTC->CR &= ~RTC_CR_CLKO_MASK;
+  }
+  else {
+    RTC->CR |= RTC_CR_CLKO_MASK;
+  }
+  /* Set the XTAL32/RTC_CLKIN frequency based on board setting. */
+  CLOCK_SetXtal32Freq(CONFIG_XTAL32K_FREQ);
+  /* Set RTC_TSR if there is fault value in RTC */
+  if (RTC->SR & RTC_SR_TIF_MASK) {
+    RTC -> TSR = RTC -> TSR;
+  }
+  /* RTC clock gate disable */
+  CLOCK_DisableClock(kCLOCK_Rtc0);
+}
+#endif // CONFIG_USE_FLL
 
 /**
  *
@@ -93,6 +164,7 @@ static ALWAYS_INLINE void clock_init(void)
 {
 	CLOCK_SetSimSafeDivs();
 
+#if !defined(CONFIG_USE_FLL)
 	CLOCK_InitOsc0(&oscConfig);
 	CLOCK_SetXtal0Freq(CONFIG_OSC_XTAL0_FREQ);
 
@@ -113,6 +185,49 @@ static ALWAYS_INLINE void clock_init(void)
 	CLOCK_EnableUsbfs0Clock(kCLOCK_UsbSrcPll0,
 				DT_PROP(DT_PATH(cpus, cpu_0), clock_frequency));
 #endif
+#else // CONFIG_USE_FLL
+
+	/* Configure RTC clock including enabling RTC oscillator. */
+	// 0pf extra caps, enable 32K to other peripherals out of generator
+	CLOCK_CONFIG_SetRtcClock(0, 1);
+	/* Configure the Internal Reference clock (MCGIRCLK). */
+	// CLOCK_SetInternalRefClkConfig(mcgConfig_BOARD_BootClockRUN.irclkEnableMode,
+	// 															mcgConfig_BOARD_BootClockRUN.ircs,
+	// 															mcgConfig_BOARD_BootClockRUN.fcrdiv);
+	// TODO: Do we need the IRCLK even? we now select slow, but could it be
+	//       disabled?
+	CLOCK_SetInternalRefClkConfig(kMCG_IrclkEnable, kMCG_IrcSlow,
+				      CONFIG_MCG_FCRDIV);
+  /* Set MCG to FEE mode. */
+  CLOCK_BootToFeeMode(/*mcgConfig_BOARD_BootClockRUN.oscsel*/ kMCG_OscselRtc, // rtcosc as the source to FLL
+                      /*mcgConfig_BOARD_BootClockRUN.frdiv*/ 0 /* div by 1 */,
+                      /*mcgConfig_BOARD_BootClockRUN.dmx32*/ kMCG_Dmx32Fine /* since exactly 32768 */,
+                      /*mcgConfig_BOARD_BootClockRUN.drs*/ kMCG_DrsHigh /* 96M target range */,
+                      CLOCK_CONFIG_FllStableDelay);
+  /* Set the clock configuration in SIM module. */
+  CLOCK_SetSimConfig(&simConfig);
+
+// #define BOARD_BOOTCLOCKRUN_CORE_CLOCK              95977472U  /*!< Core clock frequency: 95977472Hz */
+
+  // /* Set SystemCoreClock variable. */
+  // This is an internal variable for clock_config it seems, or common CMSIS
+  // SystemCoreClock = BOARD_BOOTCLOCKRUN_CORE_CLOCK;
+
+  /* Set RTC_CLKOUT source. */
+  // 0: 1Hz, 1: 32768Hz
+  CLOCK_SetRtcClkOutClock(1);
+  /* Enable USB FS clock. Note that it's never disabled anywhere. */
+  CLOCK_EnableUsbfs0Clock(kCLOCK_UsbSrcIrc48M, 48000000U);
+  /* Set CLKOUT source. (FlexBusClk = 0) */
+  CLOCK_SetClkOutClock(0);
+  /* Set debug trace clock source. */
+  // CLOCK_SetTraceClock(SIM_TRACE_CLK_SEL_CORE_SYSTEM_CLK);
+
+  // TODO: getting SD to work will require switching the USB clock to something
+  //       else when there's no USB.
+  //       There's no SDHC support for kinetis anyway. except there's an NXP USDHC driver
+  //       for imx stuff. does it look the same?
+#endif // CONFIG_USE_FLL
 }
 
 /**
@@ -158,11 +273,13 @@ static int k6x_init(struct device *arg)
 	SYSMPU->CESR = temp_reg;
 #endif /* !CONFIG_ARM_MPU */
 
+#if 0
 #ifdef CONFIG_K6X_HSRUN
 	/* Switch to HSRUN mode */
 	SMC->PMPROT |= SMC_PMPROT_AHSRUN_MASK;
 	SMC->PMCTRL = (SMC->PMCTRL & ~SMC_PMCTRL_RUNM_MASK) |
 		SMC_PMCTRL_RUNM(RUNM_HSRUN);
+#endif
 #endif
 	/* Initialize PLL/system clock up to 180 MHz */
 	clock_init();

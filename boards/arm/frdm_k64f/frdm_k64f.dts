@@ -94,7 +94,11 @@ arduino_serial: &uart3 {
 };
 
 &cpu0 {
-	clock-frequency = <120000000>;
+	//clock-frequency = <120000000>;
+	// really 95977472, but round it up to make things bearable
+	// TODO: verify the freq one of these days, shouldn't be impossible with DWT
+	//       and systick now
+	clock-frequency = <96000000>;
 };
 
 &adc0 {
