@@ -11,13 +11,15 @@
  * This module initializes the watchdog for the fsl_frdm_k64f platform.
  */
 
-#include <soc.h>
-#include <toolchain.h>
+
 #include <linker/sections.h>
 
 _ASM_FILE_PROLOGUE
 
 GTEXT(z_arm_watchdog_init)
+
+/* watchdog register base */
+#define WDOG_ADDR_BASE 0x40052000
 
 /* watchdog register offsets */
 #define WDOG_SCTRL_HI_OFFSET  0x0
@@ -50,7 +52,7 @@ SECTION_FUNC(TEXT,z_arm_watchdog_init)
      * interrupts to keep the code atomic and ensure the timing.
      */
 
-    ldr r0, =PERIPH_ADDR_BASE_WDOG
+    ldr r0, =WDOG_ADDR_BASE
 
     movw r1, #WDOG_UNLOCK_1_CMD
     strh r1, [r0, #WDOG_UNLOCK_OFFSET]

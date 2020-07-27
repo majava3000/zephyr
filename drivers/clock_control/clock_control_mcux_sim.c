@@ -6,7 +6,7 @@
 
 #define DT_DRV_COMPAT nxp_kinetis_sim
 #include <errno.h>
-#include <soc.h>
+#include <sys/util.h>
 #include <drivers/clock_control.h>
 #include <dt-bindings/clock/kinetis_sim.h>
 #include <fsl_clock.h>

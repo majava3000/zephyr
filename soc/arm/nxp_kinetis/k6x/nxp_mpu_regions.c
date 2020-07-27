@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-#include <soc.h>
+#include <sys/util.h>
 #include <arch/arm/aarch32/cortex_m/mpu/nxp_mpu.h>
 
 static const struct nxp_mpu_region mpu_regions[] = {
