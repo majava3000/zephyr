@@ -51,6 +51,8 @@ static int mcux_rtc_stop(struct device *dev)
 			      kRTC_AlarmInterruptEnable |
 			      kRTC_TimeOverflowInterruptEnable |
 			      kRTC_TimeInvalidInterruptEnable);
+	// doesn't the stop also disable interrupts? check the implementation later
+	// also, why do we wrap this, but not the TAR clear below
 	RTC_StopTimer(config->base);
 
 	/* clear out any set alarms */
@@ -66,6 +68,8 @@ static uint32_t mcux_rtc_read(struct device *dev)
 		CONTAINER_OF(info, struct mcux_rtc_config, info);
 
 	uint32_t ticks = config->base->TSR;
+
+	// This reads the TSR two or three times
 
 	/*
 	 * Read TSR seconds twice in case it glitches during an update.
@@ -98,7 +102,7 @@ static int mcux_rtc_set_alarm(struct device *dev, uint8_t chan_id,
 	uint32_t ticks = alarm_cfg->ticks;
 	uint32_t current = mcux_rtc_read(dev);
 
-	LOG_DBG("Current time is %d ticks", current);
+	LOG_DBG("Current time is %u ticks", current);
 
 	if (chan_id != 0U) {
 		LOG_ERR("Invalid channel id");
@@ -122,7 +126,7 @@ static int mcux_rtc_set_alarm(struct device *dev, uint8_t chan_id,
 	data->alarm_user_data = alarm_cfg->user_data;
 
 	config->base->TAR = ticks;
-	LOG_DBG("Alarm set to %d ticks", ticks);
+	LOG_DBG("Alarm set to %u ticks", ticks);
 
 	return 0;
 }
@@ -199,9 +203,9 @@ static void mcux_rtc_isr(void *arg)
 	counter_alarm_callback_t cb;
 	uint32_t current = mcux_rtc_read(dev);
 
+	LOG_DBG("Current time is %u ticks", current);
 
-	LOG_DBG("Current time is %d ticks", current);
-
+	// TODO: should avoid reading status regs unnecessarily
 	if ((RTC_GetStatusFlags(config->base) & RTC_SR_TAF_MASK) &&
 	    (data->alarm_callback)) {
 		cb = data->alarm_callback;
