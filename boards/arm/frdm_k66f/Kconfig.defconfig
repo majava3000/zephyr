@@ -1,0 +1,64 @@
+# FRDM-K66F board
+
+# Copyright (c) 2020 DENX Software Engineering GmbH
+# SPDX-License-Identifier: Apache-2.0
+
+if BOARD_FRDM_K66F
+
+config BOARD
+	default "frdm_k66f"
+
+config OSC_XTAL0_FREQ
+	default 12000000
+
+config MCG_PRDIV0
+	default 0x0
+
+config MCG_VDIV0
+	default 0xe
+
+config MCG_FCRDIV
+	default 1
+
+if PINMUX_MCUX
+
+# TODO: The settings here differ between designs. what is the intent to block
+#       complete ports here?
+config PINMUX_MCUX_PORTA
+	default y
+
+config PINMUX_MCUX_PORTB
+	default y
+
+config PINMUX_MCUX_PORTC
+	default y
+
+config PINMUX_MCUX_PORTD
+	default y
+
+config PINMUX_MCUX_PORTE
+	default y
+
+endif # PINMUX_MCUX
+
+config TEMP_KINETIS
+	default y if "$(dt_nodelabel_enabled,adc1)"
+	depends on SENSOR && ADC
+
+# TODO: what else?
+config SPI_0
+  default y
+  depends on SPI
+
+if NETWORKING
+
+config NET_L2_ETHERNET
+  # TODO: What is MODEM anyway? why is it blocking here?
+	default y if !MODEM
+
+config ETH_MCUX_0
+	default y if NET_L2_ETHERNET
+
+endif # NETWORKING
+
+endif # BOARD_FRDM_K66F
