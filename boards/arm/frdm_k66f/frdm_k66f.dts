@@ -1,0 +1,272 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/dts-v1/;
+
+#include <nxp/nxp_k6x.dtsi>
+
+/ {
+	model = "NXP Freedom K66F board";
+	compatible = "nxp,mk66f18", "nxp,k66f", "nxp,k6x";
+
+	aliases {
+		led0 = &green_led;
+		led1 = &blue_led;
+		led2 = &red_led;
+		// TODO: What are these aliases used for? latter parts are sw3 and sw2
+		sw0 = &user_button_3;
+		sw1 = &user_button_2;
+	};
+
+	chosen {
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,code-partition = &slot0_partition;
+		zephyr,console = &uart0;
+		zephyr,shell-uart = &uart0;
+		zephyr,uart-pipe = &uart0;
+	};
+
+	leds {
+	  // AKO: 2020-08-10 done
+		compatible = "gpio-leds";
+		red_led: led_0 {
+			gpios = <&gpioc 9 GPIO_ACTIVE_LOW>;
+			// TODO: What is significance of these labels? It's a tri-LED, no "label"
+			//       for each color
+			label = "User LD1";
+		};
+		green_led: led_1 {
+			gpios = <&gpioe 6 GPIO_ACTIVE_LOW>;
+			label = "User LD2";
+		};
+		blue_led: led_2 {
+			gpios = <&gpioa 11 GPIO_ACTIVE_LOW>;
+			label = "User LD3";
+		};
+	};
+
+	gpio_keys {
+	  // AKO: Done 2020-08-10
+		compatible = "gpio-keys";
+		// TODO: What is the logic in naming the aliases and actual keys here?
+		user_button_2: button_0 {
+			label = "User SW2";
+			// ext PU not populated. Use internal PU
+			gpios = <&gpiod 11 GPIO_ACTIVE_LOW>;
+		};
+		user_button_3: button_1 {
+			label = "User SW3";
+			// ext PU not populated. Use internal PU
+			gpios = <&gpioa 10 GPIO_ACTIVE_LOW>;
+		};
+	};
+
+	arduino_header: connector {
+	  // AKO 2020-08-10 Done (D10-D13 are identical to K66, otherwise not much common)
+		compatible = "arduino-header-r3";
+		#gpio-cells = <2>;
+		gpio-map-mask = <0xffffffff 0xffffffc0>;
+		gpio-map-pass-thru = <0 0x3f>;
+		gpio-map = <0 0 &gpiob 7 0>,   /* A0 */
+						   <1 0 &gpiob 6 0>,   /* A1 */
+						   <2 0 &gpiob 5 0>,   /* A2 */
+						   <3 0 &gpiob 4 0>,   /* A3 */
+						   <4 0 &gpiob 3 0>,   /* A4 */
+						   <5 0 &gpiob 2 0>,   /* A5 */
+
+						   <6 0 &gpioc 3 0>,   /* D0 */
+						   <7 0 &gpioc 4 0>,   /* D1 */
+						   <8 0 &gpioc 16 0>,  /* D2 */
+						   <9 0 &gpioc 8 0>,   /* D3 */
+						   <10 0 &gpioc 12 0>, /* D4 */
+						   <11 0 &gpioc 5 0>,  /* D5 */
+						   <12 0 &gpioc 2 0>,  /* D6 */
+						   <13 0 &gpioa 25 0>, /* D7 */
+						   
+						   <14 0 &gpiob 18 0>, /* D8 */
+						   <15 0 &gpiob 19 0>, /* D9 */
+						   <16 0 &gpiod 0 0>,  /* D10 */
+						   <17 0 &gpiod 2 0>,  /* D11 */
+						   <18 0 &gpiod 3 0>,  /* D12 */
+						   <19 0 &gpiod 1 0>,  /* D13 */
+						   <20 0 &gpioc 11 0>, /* D14 */
+						   <21 0 &gpioc 10 0>; /* D15 */
+	};
+};
+
+arduino_serial: &uart3 {
+  // check what this was on old and new
+	status = "okay";
+	current-speed = <115200>;
+};
+
+&cpu0 {
+  // AKO what to use here?
+	clock-frequency = <120000000>;
+};
+
+//&adc0 {
+//	status = "okay";
+//};
+
+//&adc1 {
+//	status = "okay";
+//};
+
+//&temp1 {
+//	status = "okay";
+//};
+
+//&dac0 {
+//	status = "okay";
+//	voltage-reference = <2>;
+//};
+
+// Not available on arduino connector, so removing arduino_i2c here
+&i2c0 {
+  // AKO 2020-08-10 Done
+  // SCL: PTD8, SDA: PTD9, I2C0 instace.
+	status = "okay";
+
+	// TODO: Switch later, pullups need checking
+	// clock-frequency = <I2C_BITRATE_STANDARD>;
+
+	fxos8700@1d {
+		compatible = "nxp,fxos8700";
+		reg = <0x1d>;
+		label = "FXOS8700";
+		// dedicated, no ext PU
+		int1-gpios = <&gpioc 17 GPIO_ACTIVE_LOW>;
+		// dedicated, no exit PU
+		int2-gpios = <&gpioc 13 GPIO_ACTIVE_LOW>;
+	};
+
+  fxas21002@21 {
+    // SAO=1 -> 0x21 addr
+    compatible = "nxp,fxas21002";
+    reg = <0x21>;
+    label = "FXAS21002";
+    // dedicated, no ext PU
+    int1-gpios = <&gpioa 29 GPIO_ACTIVE_LOW>;
+    // dedicated, no ext PU
+    int2-gpios = <&gpioc 18 GPIO_ACTIVE_LOW>;
+  };
+
+};
+
+arduino_i2c: &i2c1 {
+  // PTC10=SCL, PTC11=SDA using I2C1 instance
+  // available on "D14" and "D15" with 2k2 ext PU on both
+  status = "okay";
+
+  da7212@1a {
+    compatible = "dialog,da7212";
+    reg = <0x1a>;
+    // TODO: review other codes that have both I2S and I2C parts. There are no
+    // interrupts here.
+  };
+
+};
+  
+//arduino_spi: &spi0 {
+//	status = "okay";
+//};
+
+//&ftm3 {
+//	status = "okay";
+//	compatible = "nxp,kinetis-ftm-pwm";
+//	#pwm-cells = <3>;
+//};
+
+&uart0 {
+  // AKO 2020-08-10 Done
+  // PTB16, PTB17 used with UART0 instance
+	status = "okay";
+	current-speed = <115200>;
+};
+
+&usbotg {
+  // AKO 2020-08-10 Done (should be ok?)
+	compatible = "nxp,kinetis-usbd";
+	status = "okay";
+	num-bidir-endpoints = <8>;
+};
+
+&gpioa {
+	status = "okay";
+};
+
+&gpiob {
+	status = "okay";
+};
+
+&gpioc {
+	status = "okay";
+};
+
+&gpiod {
+	status = "okay";
+};
+
+&gpioe {
+	status = "okay";
+};
+
+&flash0 {
+	/*
+	 * For more information, see:
+	 * https://docs.zephyrproject.org/latest/guides/dts/legacy-macros.html#legacy-flash-partitions
+	 */
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		boot_partition: partition@0 {
+			label = "mcuboot";
+			reg = <0x00000000 0x00010000>;
+			read-only;
+		};
+
+		/*
+		 * The flash starting at 0x00010000 and ending at
+		 * 0x0001ffff (sectors 16-31) is reserved for use
+		 * by the application.
+		 */
+		storage_partition: partition@1e000 {
+			label = "storage";
+			reg = <0x0001e000 0x00002000>;
+		};
+
+		slot0_partition: partition@20000 {
+			label = "image-0";
+			reg = <0x00020000 0x00060000>;
+		};
+		slot1_partition: partition@80000 {
+			label = "image-1";
+			reg = <0x00080000 0x00060000>;
+		};
+		scratch_partition: partition@e0000 {
+			label = "image-scratch";
+			reg = <0x000e0000 0x00020000>;
+		};
+	};
+};
+
+&enet {
+  // AKO weird that nothing phy related happens here
+	status = "okay";
+	ptp {
+		status = "okay";
+	};
+};
+
+// Don't have anything to test this with
+//&flexcan0 {
+//	status = "okay";
+//	bus-speed = <125000>;
+//};
+
+&edma0 {
+	status = "okay";
+};

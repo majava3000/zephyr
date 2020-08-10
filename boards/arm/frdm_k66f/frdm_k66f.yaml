@@ -1,0 +1,27 @@
+identifier: frdm_k66f
+name: NXP FRDM-K66F
+type: mcu
+arch: arm
+toolchain:
+  - gnuarmemb
+  - xtools
+  - zephyr
+supported:
+  - adc
+  - arduino_gpio
+  - arduino_i2c
+  - can
+  - counter
+  - dac
+  - gpio
+  - i2c
+  - netif:eth
+  - nvs
+  - pwm
+  - spi
+  - usb_device
+  - watchdog
+testing:
+  # TODO: Check what the value is for other not widely supported boards. k64f has
+  #       true here
+  default: false
